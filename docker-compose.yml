@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: hermeswith-postgres
+    environment:
+      POSTGRES_USER: hermeswith
+      POSTGRES_PASSWORD: hermeswith
+      POSTGRES_DB: hermeswith
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: hermeswith-redis
+    ports:
+      - "6379:6379"
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: Dockerfile.control-plane
+    container_name: hermeswith-control-plane
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://hermeswith:hermeswith@postgres:5432/hermeswith
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app/hermeswith
+    depends_on:
+      - postgres
+      - redis
+    command: uvicorn hermeswith.control_plane.api:create_app --host 0.0.0.0 --port 8000 --reload
+
+  # Example agent: researcher
+  researcher:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+    container_name: hermeswith-researcher
+    environment:
+      - AGENT_ID=researcher-001
+      - COMPANY_ID=demo-corp
+      - AGENT_ROLE=researcher
+      - AGENT_MODEL=anthropic/claude-3-5-sonnet-20241022
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://hermeswith:hermeswith@postgres:5432/hermeswith
+      - CONTROL_PLANE_WS=ws://control-plane:8000/ws
+    volumes:
+      - .:/app/hermeswith
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - control-plane
+      - redis
+    command: python -m hermeswith.runtime.main
+
+volumes:
+  pgdata:

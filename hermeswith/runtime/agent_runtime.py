@@ -1,0 +1,259 @@
+"""
+AgentRuntime - The core execution engine for HermesWith.
+
+Wraps Hermes AIAgent to execute Goals in a containerized environment.
+"""
+
+import asyncio
+import os
+import sys
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+# Add vendor hermes-agent to path
+sys.path.insert(0, "/app/vendor/hermes-agent")
+
+from pydantic import BaseModel, Field
+
+
+class Goal(BaseModel):
+    """A Goal is what needs to be achieved (not how)."""
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    agent_id: str
+    company_id: str
+    description: str  # Natural language description of what to achieve
+    context: Dict[str, Any] = Field(default_factory=dict)
+    status: str = "pending"  # pending/planning/executing/completed/failed
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class GoalExecution(BaseModel):
+    """Record of how a Goal was executed."""
+    
+    goal_id: str
+    agent_id: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    trajectory: List[Dict[str, Any]] = Field(default_factory=list)
+    final_output: str = ""
+    tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
+    token_usage: int = 0
+    status: str = "pending"
+    error: Optional[str] = None
+
+
+class AgentRuntime:
+    """
+    Runtime environment for a single Agent.
+    
+    Each Agent runs in its own container with:
+    - Hermes AIAgent for reasoning and tool use
+    - PersistentMemory for long-term context
+    - DockerSandbox for safe code execution
+    - Connection to Control Plane via Redis and WebSocket
+    """
+    
+    def __init__(self, config: "AgentConfig"):
+        self.config = config
+        self.agent_id = config.agent_id
+        self.company_id = config.company_id
+        
+        # Initialize Hermes AIAgent
+        self._init_hermes_agent()
+        
+        # Initialize connections (lazy load)
+        self._redis = None
+        self._ws_client = None
+        
+        # Track executions
+        self.current_execution: Optional[GoalExecution] = None
+    
+    def _init_hermes_agent(self):
+        """Initialize the Hermes AIAgent."""
+        try:
+            # Import Hermes core (may not be available during MVP)
+            from run_agent import AIAgent
+            
+            self.agent = AIAgent(
+                base_url=self.config.base_url,
+                api_key=self.config.api_key,
+                model=self.config.model,
+                enabled_toolsets=self.config.toolsets,
+                max_iterations=self.config.max_iterations,
+                platform="hermeswith",
+                save_trajectories=True,
+                quiet_mode=True,  # Reduce noise in logs
+            )
+            self._has_hermes = True
+            print(f"✅ Hermes AIAgent initialized: {self.config.model}")
+        except ImportError as e:
+            print(f"⚠️  Hermes AIAgent not available: {e}")
+            self._has_hermes = False
+            self.agent = None
+        except Exception as e:
+            print(f"❌ Failed to initialize AIAgent: {e}")
+            self._has_hermes = False
+            self.agent = None
+    
+    async def run(self):
+        """Main loop: continuously pull and execute Goals."""
+        print(f"🚀 AgentRuntime started for {self.agent_id}")
+        print(f"   Model: {self.config.model}")
+        print(f"   Toolsets: {self.config.toolsets}")
+        
+        while True:
+            try:
+                goal = await self._pull_goal()
+                if goal:
+                    await self._execute_goal(goal)
+                else:
+                    await asyncio.sleep(1)
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                await asyncio.sleep(5)
+    
+    async def _pull_goal(self) -> Optional[Goal]:
+        """Pull next Goal from Redis queue."""
+        # MVP: mock implementation, read from file or return None
+        # TODO: Implement Redis queue
+        return None
+    
+    async def _execute_goal(self, goal: Goal):
+        """Execute a single Goal."""
+        print(f"\n📋 New Goal: {goal.description[:60]}...")
+        
+        execution = GoalExecution(
+            goal_id=goal.id,
+            agent_id=self.agent_id,
+            started_at=datetime.utcnow(),
+            status="executing"
+        )
+        self.current_execution = execution
+        
+        try:
+            if self._has_hermes and self.agent:
+                # Use Hermes AIAgent
+                result = await self._execute_with_hermes(goal)
+            else:
+                # Fallback: mock execution
+                result = await self._execute_mock(goal)
+            
+            execution.final_output = result.get("output", "")
+            execution.status = "completed"
+            execution.completed_at = datetime.utcnow()
+            
+            print(f"✅ Goal completed: {execution.final_output[:100]}...")
+            
+        except Exception as e:
+            execution.status = "failed"
+            execution.error = str(e)
+            print(f"❌ Goal failed: {e}")
+        
+        await self._save_execution(execution)
+    
+    async def _execute_with_hermes(self, goal: Goal) -> Dict[str, Any]:
+        """Execute using Hermes AIAgent."""
+        import asyncio
+        
+        # Build system prompt with role and memory
+        system_prompt = self._build_system_prompt()
+        
+        # Build user message from Goal
+        user_message = self._build_goal_message(goal)
+        
+        # Run Hermes conversation (run_conversation is synchronous)
+        result = await asyncio.to_thread(
+            self.agent.run_conversation,
+            user_message=user_message,
+            system_message=system_prompt,
+            task_id=goal.id,
+        )
+        
+        return {
+            "output": result.get("final_response", ""),
+            "trajectory": result.get("messages", []),
+        }
+    
+    async def _execute_mock(self, goal: Goal) -> Dict[str, Any]:
+        """Mock execution for MVP testing without Hermes."""
+        print(f"🤖 Mock execution: {goal.description}")
+        await asyncio.sleep(2)
+        return {
+            "output": f"Mock result for: {goal.description}",
+        }
+    
+    def _build_system_prompt(self) -> str:
+        """Build system prompt with role definition and memories."""
+        return f"""You are {self.agent_id}, a digital employee of company {self.company_id}.
+
+Your role: {self.config.role}
+
+You have access to tools: {', '.join(self.config.toolsets)}
+
+Behavior guidelines:
+1. Understand the goal before planning
+2. Use tools autonomously to achieve the goal
+3. Self-correct when encountering errors
+4. Provide clear deliverables
+"""
+    
+    def _build_goal_message(self, goal: Goal) -> str:
+        """Build user message from Goal."""
+        context_str = ""
+        if goal.context:
+            context_str = f"\n\nAdditional context:\n{goal.context}"
+        
+        return f"Goal: {goal.description}{context_str}"
+    
+    async def _save_execution(self, execution: GoalExecution):
+        """Save execution record."""
+        # MVP: print to stdout, later: save to PostgreSQL
+        print(f"💾 Execution saved: {execution.goal_id} -> {execution.status}")
+    
+    async def submit_goal(self, description: str, context: Optional[Dict] = None) -> Goal:
+        """Submit a Goal directly (for testing)."""
+        goal = Goal(
+            agent_id=self.agent_id,
+            company_id=self.company_id,
+            description=description,
+            context=context or {},
+        )
+        await self._execute_goal(goal)
+        return goal
+
+
+class AgentConfig(BaseModel):
+    """Configuration for AgentRuntime."""
+    
+    agent_id: str
+    company_id: str = "default"
+    role: str = "assistant"
+    model: str = "k2p5"
+    base_url: str = "https://api.kimi.com/coding/v1"
+    api_key: str = ""
+    toolsets: List[str] = Field(default_factory=lambda: ["terminal", "file"])
+    max_iterations: int = 20
+    
+    # Connections
+    redis_url: str = "redis://localhost:6379"
+    database_url: str = "postgresql://user:pass@localhost/db"
+    control_plane_ws: str = "ws://localhost:8000/ws"
+    
+    # Paths
+    workspace_dir: str = "/workspace"
+    
+    @classmethod
+    def from_env(cls) -> "AgentConfig":
+        """Create config from environment variables."""
+        return cls(
+            agent_id=os.getenv("AGENT_ID", "agent-001"),
+            company_id=os.getenv("COMPANY_ID", "default"),
+            role=os.getenv("AGENT_ROLE", "assistant"),
+            model=os.getenv("AGENT_MODEL", "k2p5"),
+            base_url=os.getenv("AGENT_BASE_URL", "https://api.kimi.com/coding/v1"),
+            api_key=os.getenv("AGENT_API_KEY", os.getenv("KIMI_API_KEY", "")),
+            redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
+            database_url=os.getenv("DATABASE_URL", "postgresql://user:pass@localhost/db"),
+        )
