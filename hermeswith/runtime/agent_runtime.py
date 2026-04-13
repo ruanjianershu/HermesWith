@@ -75,7 +75,17 @@ class AgentRuntime:
         try:
             # Import Hermes core (may not be available during MVP)
             from run_agent import AIAgent
-            
+            import model_tools
+
+            # Explicitly discover tools to ensure registry is populated
+            model_tools._discover_tools()
+
+            # Register HermesWith runtime tools
+            try:
+                import hermeswith.tools.runtime_tools  # noqa: F401
+            except Exception as e:
+                print(f"⚠️  Failed to load runtime tools: {e}")
+
             self.agent = AIAgent(
                 base_url=self.config.base_url,
                 api_key=self.config.api_key,
@@ -86,6 +96,9 @@ class AgentRuntime:
                 save_trajectories=True,
                 quiet_mode=True,  # Reduce noise in logs
             )
+
+            # Expose tool registry for introspection
+            self.agent.tool_registry = self.agent.tools or []
             self._has_hermes = True
             print(f"✅ Hermes AIAgent initialized: {self.config.model}")
         except ImportError as e:
@@ -186,17 +199,29 @@ class AgentRuntime:
     
     def _build_system_prompt(self) -> str:
         """Build system prompt with role definition and memories."""
+        tools_str = "None"
+        if self._has_hermes and self.agent and getattr(self.agent, "tool_registry", None):
+            tools = [
+                t["function"]["name"]
+                for t in self.agent.tool_registry
+                if isinstance(t, dict) and t.get("function", {}).get("name")
+            ]
+            tools_str = ", ".join(tools) if tools else "None"
+
         return f"""You are {self.agent_id}, a digital employee of company {self.company_id}.
 
 Your role: {self.config.role}
 
-You have access to tools: {', '.join(self.config.toolsets)}
+Mission: Autonomously achieve assigned goals using available tools. You are a proactive agent, not a passive assistant.
+
+Available tools: {tools_str}
 
 Behavior guidelines:
-1. Understand the goal before planning
-2. Use tools autonomously to achieve the goal
-3. Self-correct when encountering errors
-4. Provide clear deliverables
+1. Understand the goal before planning - read context carefully and ask for clarification only when truly necessary.
+2. Use tools autonomously to achieve the goal - prefer action over explanation.
+3. Self-correct when encountering errors - retry with adjusted parameters, try alternative tools, or revise your approach.
+4. Provide clear deliverables - complete the task fully and call `goal_complete` with a concise summary when done.
+5. Think step-by-step for complex tasks, but keep responses focused on results.
 """
     
     def _build_goal_message(self, goal: Goal) -> str:
