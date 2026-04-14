@@ -177,7 +177,7 @@ class TestPersistentMemory:
 
     def test_recall_partial_match(self, memory_store):
         """Test recall with partial string match."""
-        memory_store.save("config", "{"""{"db": {"host": "localhost"}}"""}")
+        memory_store.save("config", '{"db": {"host": "localhost"}}')
         memory_store.save("readme", "This project uses PostgreSQL")
 
         results = memory_store.recall("local")
@@ -340,11 +340,11 @@ class TestPersistentMemoryEdgeCases:
         # Simulate multiple queries
         results1 = memory_store.recall("value", limit=50)
         results2 = memory_store.recall("value", limit=25)
-        results3 = memory_store.recall("key5")
+        results3 = memory_store.recall("key5", limit=20)
 
         assert len(results1) == 50
         assert len(results2) == 25
-        assert len(results3) == 1  # key5, key50-59
+        assert len(results3) == 11  # key5, key50-59
 
     def test_memory_string_representation(self, memory_store):
         """Test string representation of Memory in search."""

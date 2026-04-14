@@ -108,7 +108,7 @@ class TestAgentConfig:
         assert config.agent_id == "test-agent"
         assert config.company_id == "default"
         assert config.role == "assistant"
-        assert config.model == "k2p5"
+        assert config.model == "kimi-k2.5"
         assert config.toolsets == ["terminal", "file"]
         assert config.max_iterations == 20
 

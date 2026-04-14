@@ -10,13 +10,22 @@ Tests:
 import asyncio
 import httpx
 
-API_BASE = "http://localhost:8000"
+API_BASE = "http://localhost:8001"
+
+
+def get_client():
+    """Create an httpx client that bypasses proxy for localhost."""
+    # Use mounts to bypass proxy for localhost
+    return httpx.AsyncClient(mounts={
+        "all://127.0.0.1": None,
+        "all://localhost": None,
+    })
 
 
 async def test_health():
     """Test 1: Control Plane is alive."""
     print("\n[Test 1] Health check...")
-    async with httpx.AsyncClient() as client:
+    async with get_client() as client:
         resp = await client.get(f"{API_BASE}/health")
         assert resp.status_code == 200
         data = resp.json()
@@ -27,7 +36,7 @@ async def test_health():
 async def test_create_goal():
     """Test 2: Create a Goal via API."""
     print("\n[Test 2] Create goal...")
-    async with httpx.AsyncClient() as client:
+    async with get_client() as client:
         resp = await client.post(
             f"{API_BASE}/api/companies/demo/goals",
             json={
@@ -45,7 +54,7 @@ async def test_create_goal():
 async def test_direct_execution():
     """Test 3: Execute a Goal directly on an Agent."""
     print("\n[Test 3] Direct agent execution...")
-    async with httpx.AsyncClient() as client:
+    async with get_client() as client:
         resp = await client.post(
             f"{API_BASE}/api/agents/researcher-001/execute",
             json={

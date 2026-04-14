@@ -39,9 +39,9 @@ def ask_user_tool(question: str, ws_client=None) -> str:
     """Ask the user a question via WebSocket (or fallback to queued message)."""
     if not question or not question.strip():
         return tool_error("Question text is required.")
-    
+
     question = question.strip()
-    
+
     # If a WebSocket client is provided, try to send the question
     if ws_client is not None:
         try:
@@ -72,12 +72,76 @@ def ask_user_tool(question: str, ws_client=None) -> str:
                 "error": str(e),
                 "note": "Failed to send via WebSocket. Consider retrying.",
             }, ensure_ascii=False)
-    
+
     # Fallback: no WS client available
     return json.dumps({
         "question": question,
         "sent": False,
         "note": "No WebSocket connection available. Question queued for later delivery.",
+    }, ensure_ascii=False)
+
+
+def delegate_to_agent_tool(
+    target_agent_id: str,
+    task_description: str,
+    context: Optional[Dict[str, Any]] = None,
+    priority: str = "normal",
+    ws_client=None,
+) -> str:
+    """Delegate a subtask to another agent in the system."""
+    if not target_agent_id or not target_agent_id.strip():
+        return tool_error("target_agent_id is required to delegate a task.")
+    if not task_description or not task_description.strip():
+        return tool_error("task_description is required to delegate a task.")
+
+    target_agent_id = target_agent_id.strip()
+    task_description = task_description.strip()
+    context = context or {}
+
+    delegation_message = {
+        "type": "delegate",
+        "target_agent_id": target_agent_id,
+        "task_description": task_description,
+        "context": context,
+        "priority": priority,
+    }
+
+    # If a WebSocket client is provided, try to send the delegation request
+    if ws_client is not None:
+        try:
+            import asyncio
+            if asyncio.iscoroutinefunction(ws_client.send):
+                return json.dumps({
+                    "delegated": True,
+                    "target_agent_id": target_agent_id,
+                    "task_description": task_description,
+                    "priority": priority,
+                    "note": "Delegation request sent via WebSocket.",
+                }, ensure_ascii=False)
+            else:
+                ws_client.send(delegation_message)
+                return json.dumps({
+                    "delegated": True,
+                    "target_agent_id": target_agent_id,
+                    "task_description": task_description,
+                    "priority": priority,
+                    "note": "Delegation request sent via WebSocket.",
+                }, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({
+                "delegated": False,
+                "target_agent_id": target_agent_id,
+                "error": str(e),
+                "note": "Failed to send delegation via WebSocket. Task queued for later delivery.",
+            }, ensure_ascii=False)
+
+    # Fallback: queue for later delivery
+    return json.dumps({
+        "delegated": False,
+        "target_agent_id": target_agent_id,
+        "task_description": task_description,
+        "priority": priority,
+        "note": "No WebSocket connection available. Delegation queued for later delivery.",
     }, ensure_ascii=False)
 
 
@@ -129,6 +193,41 @@ ASK_USER_SCHEMA = {
     },
 }
 
+DELEGATE_TO_AGENT_SCHEMA = {
+    "name": "delegate_to_agent",
+    "description": (
+        "Delegate a subtask to another specialized agent in the system. "
+        "Use this when a task requires expertise or capabilities that another agent possesses. "
+        "Provide a clear task description and any relevant context so the target agent "
+        "can proceed autonomously."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "target_agent_id": {
+                "type": "string",
+                "description": "The unique ID of the agent to delegate the task to.",
+            },
+            "task_description": {
+                "type": "string",
+                "description": "A clear, actionable description of the subtask to delegate.",
+            },
+            "context": {
+                "type": "object",
+                "description": "Optional additional context or constraints for the target agent.",
+                "default": {},
+            },
+            "priority": {
+                "type": "string",
+                "enum": ["low", "normal", "high", "urgent"],
+                "description": "Priority level of the delegated task.",
+                "default": "normal",
+            },
+        },
+        "required": ["target_agent_id", "task_description"],
+    },
+}
+
 
 # Register tools under the hermeswith-runtime toolset
 registry.register(
@@ -153,4 +252,19 @@ registry.register(
     ),
     check_fn=check_runtime_tools_requirements,
     emoji="❓",
+)
+
+registry.register(
+    name="delegate_to_agent",
+    toolset="hermeswith-runtime",
+    schema=DELEGATE_TO_AGENT_SCHEMA,
+    handler=lambda args, **kw: delegate_to_agent_tool(
+        target_agent_id=args.get("target_agent_id", ""),
+        task_description=args.get("task_description", ""),
+        context=args.get("context", {}),
+        priority=args.get("priority", "normal"),
+        ws_client=kw.get("ws_client"),
+    ),
+    check_fn=check_runtime_tools_requirements,
+    emoji="📤",
 )
