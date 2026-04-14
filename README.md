@@ -78,7 +78,8 @@ HermesWith is an autonomous agent platform that pairs the Hermes AI reasoning en
 ### 1. Clone and Install
 
 ```bash
-cd /Users/liting/workspace/hermeswith
+git clone https://github.com/ruanjianershu/HermesWith.git
+cd HermesWith
 pip install -e ".[dev]"
 ```
 
