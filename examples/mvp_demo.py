@@ -74,7 +74,7 @@ async def test_local_runtime():
         agent_id="test-agent",
         company_id="demo",
         role="tester",
-        model="anthropic/claude-3-5-sonnet-20241022",
+        model="kimi-k2.5",
         toolsets=[],
     )
     runtime = AgentRuntime(config)

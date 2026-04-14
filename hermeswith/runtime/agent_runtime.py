@@ -67,6 +67,7 @@ class AgentRuntime:
         self._redis = None
         self._ws_client = None
         self._intervention_queue = None
+        self._goal_queue = None
         
         # Track executions
         self.current_execution: Optional[GoalExecution] = None
@@ -174,9 +175,18 @@ class AgentRuntime:
     
     async def _pull_goal(self) -> Optional[Goal]:
         """Pull next Goal from Redis queue."""
-        # MVP: mock implementation, read from file or return None
-        # TODO: Implement Redis queue
-        return None
+        if self._goal_queue is None:
+            from hermeswith.control_plane.goal_queue import RedisGoalQueue
+            self._goal_queue = RedisGoalQueue(self.config.redis_url)
+        
+        try:
+            goal = await self._goal_queue.pull(self.agent_id, timeout=1.0)
+            if goal:
+                print(f"📥 Pulled goal from queue: {goal.id}")
+            return goal
+        except Exception as e:
+            print(f"⚠️  Failed to pull from Redis queue: {e}")
+            return None
     
     async def _execute_goal(self, goal: Goal):
         """Execute a single Goal."""
@@ -326,15 +336,14 @@ class AgentConfig(BaseModel):
     agent_id: str
     company_id: str = "default"
     role: str = "assistant"
-    model: str = "k2p5"
+    model: str = "kimi-k2.5"
     base_url: str = "https://api.kimi.com/coding/v1"
     api_key: str = ""
     toolsets: List[str] = Field(default_factory=lambda: ["terminal", "file"])
     max_iterations: int = 20
     
     # Connections
-    redis_url: str = "redis://localhost:6379"
-    database_url: str = "postgresql://user:pass@localhost/db"
+    redis_url: str = "redis://localhost:6379/0"
     control_plane_ws: str = "ws://localhost:8000/ws"
     
     # Paths
@@ -360,7 +369,7 @@ class AgentConfig(BaseModel):
             agent_id=os.getenv("AGENT_ID", "agent-001"),
             company_id=os.getenv("COMPANY_ID", "default"),
             role=os.getenv("AGENT_ROLE", "assistant"),
-            model=os.getenv("AGENT_MODEL", "k2p5"),
+            model=os.getenv("AGENT_MODEL", "kimi-k2.5"),
             base_url=os.getenv("AGENT_BASE_URL", "https://api.kimi.com/coding/v1"),
             api_key=os.getenv("AGENT_API_KEY", os.getenv("KIMI_API_KEY", "")),
             redis_url=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
