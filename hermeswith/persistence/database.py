@@ -40,9 +40,32 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+# Sync version for non-async contexts
+def get_db():
+    """Get database session (sync version for CLI and services)."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    
+    # Use sync driver
+    sync_url = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+    engine = create_engine(sync_url)
+    SessionLocal = sessionmaker(bind=engine)
+    
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 async def init_db() -> None:
     """Create all database tables."""
-    from hermeswith.persistence.models import AgentMemoryDB, GoalDB, GoalExecutionDB  # noqa: F401
-
+    # Import all models to ensure they are registered with Base
+    from hermeswith.persistence.models import (
+        CompanyDB, APIKeyDB, AuditLogDB, RateLimitDB, EncryptedConfigDB,
+        GoalDB, GoalExecutionDB, AgentMemoryDB,
+        AgentDB, TaskDB, AgentOutputDB
+    )  # noqa: F401
+    
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

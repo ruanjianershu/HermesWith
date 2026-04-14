@@ -2,63 +2,58 @@ version: "3.8"
 
 services:
   postgres:
-    image: pgvector/pgvector:pg16
-    container_name: hermeswith-postgres
+    image: postgres:15-alpine
     environment:
-      POSTGRES_USER: hermeswith
-      POSTGRES_PASSWORD: hermeswith
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: hermeswith
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: hermeswith-redis
+    volumes:
+      - redis_data:/data
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  control-plane:
+  api:
     build:
       context: .
-      dockerfile: Dockerfile.control-plane
-    container_name: hermeswith-control-plane
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hermeswith
+      CLAWITH_BASE_URL: ${CLAWITH_BASE_URL:-http://host.docker.internal:3000}
+      CLAWITH_API_KEY: ${CLAWITH_API_KEY:-}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      HOST: 0.0.0.0
+      PORT: 8000
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://hermeswith:***@postgres:5432/hermeswith
-      - REDIS_URL=redis://redis:6379/0
-      - CONTROL_PLANE_WS=ws://control-plane:8000/ws
-    volumes:
-      - .:/app
-      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
-      - postgres
-      - redis
-    command: uvicorn hermeswith.control_plane.api:create_app --host 0.0.0.0 --port 8000 --reload
-
-  researcher:
-    build:
-      context: .
-      dockerfile: Dockerfile.runtime
-    container_name: hermeswith-researcher
-    environment:
-      - AGENT_ID=researcher
-      - COMPANY_ID=default
-      - AGENT_ROLE=researcher
-      - AGENT_MODEL=k2p5
-      - AGENT_BASE_URL=https://api.kimi.com/coding/v1
-      - AGENT_API_KEY=${KIMI_API_KEY:-}
-      - REDIS_URL=redis://redis:6379/0
-      - CONTROL_PLANE_WS=ws://control-plane:8000/ws
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      - .:/app
-      - ~/.hermes/hermes-agent:/app/vendor/hermes-agent
-    depends_on:
-      - control-plane
-      - redis
-    command: python -m hermeswith.runtime.main
+      - ./hermeswith:/app/hermeswith:ro
+    restart: unless-stopped
 
 volumes:
-  pgdata:
+  postgres_data:
+  redis_data:
