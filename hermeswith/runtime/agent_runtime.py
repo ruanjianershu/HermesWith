@@ -66,6 +66,7 @@ class AgentRuntime:
         # Initialize connections (lazy load)
         self._redis = None
         self._ws_client = None
+        self._intervention_queue = None
         
         # Track executions
         self.current_execution: Optional[GoalExecution] = None
@@ -80,6 +81,39 @@ class AgentRuntime:
         """Resume the agent."""
         self.paused = False
         print(f"▶️  Agent {self.agent_id} resumed")
+
+    async def _notify(self, message: Dict[str, Any]):
+        """Broadcast a progress message via WebSocket."""
+        if self._ws_client is None:
+            from hermeswith.runtime.ws_client import WSClient
+            self._ws_client = WSClient(self.agent_id)
+            await self._ws_client.connect(self.config.control_plane_ws)
+        await self._ws_client.send(message)
+
+    async def _check_intervention(self, timeout: float = 0.5) -> Optional[Dict[str, Any]]:
+        """Check for user intervention messages."""
+        if self._intervention_queue is None:
+            from hermeswith.runtime.intervention import InterventionQueue
+            self._intervention_queue = InterventionQueue()
+        return await self._intervention_queue.get(timeout=timeout)
+
+    async def _handle_intervention(self, intervention: Dict[str, Any]) -> bool:
+        """Process an intervention message. Returns True if goal should continue."""
+        msg_type = intervention.get("type")
+        if msg_type == "pause":
+            self.pause()
+            return False
+        if msg_type == "resume":
+            self.resume()
+            return True
+        if msg_type == "cancel":
+            print("🛑 Goal cancelled by user")
+            return False
+        if msg_type == "intervene":
+            # Store intervention text for injection into next LLM turn
+            print(f"💬 User intervention: {intervention.get('message', '')}")
+            return True
+        return True
 
     def _init_hermes_agent(self):
         """Initialize the Hermes AIAgent."""
@@ -148,6 +182,14 @@ class AgentRuntime:
         """Execute a single Goal."""
         print(f"\n📋 New Goal: {goal.description[:60]}...")
         
+        # Notify goal started
+        await self._notify({
+            "type": "goal_started",
+            "goal_id": goal.id,
+            "agent_id": self.agent_id,
+            "description": goal.description,
+        })
+        
         execution = GoalExecution(
             goal_id=goal.id,
             agent_id=self.agent_id,
@@ -170,10 +212,26 @@ class AgentRuntime:
             
             print(f"✅ Goal completed: {execution.final_output[:100]}...")
             
+            # Notify goal completed
+            await self._notify({
+                "type": "goal_completed",
+                "goal_id": goal.id,
+                "agent_id": self.agent_id,
+                "output": execution.final_output,
+            })
+            
         except Exception as e:
             execution.status = "failed"
             execution.error = str(e)
             print(f"❌ Goal failed: {e}")
+            
+            # Notify goal failed
+            await self._notify({
+                "type": "goal_failed",
+                "goal_id": goal.id,
+                "agent_id": self.agent_id,
+                "error": str(e),
+            })
         
         await self._save_execution(execution)
     
