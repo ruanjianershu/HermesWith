@@ -1,98 +1,166 @@
 # HermesWith
 
-Multi-tenant agent management API with Clawith integration.
+Multi-tenant Control Plane for Clawith - Enterprise-grade agent management, task scheduling, and tenant isolation API layer.
 
-## Features
+## 🎯 What is HermesWith?
 
-- **Multi-tenant**: Company-based isolation with API key authentication
-- **Agent Management**: Create, update, delete agents with Clawith sync
-- **Task Management**: Assign tasks to agents with priority and status tracking
-- **Audit Logging**: Complete audit trail of all API requests
-- **Rate Limiting**: Redis-backed rate limiting per API key
-- **Encryption**: Fernet encryption for sensitive configuration
+HermesWith is a **multi-tenant Control Plane for Clawith**, providing enterprises with a unified API layer for agent management.
 
-## Quick Start
+### Why HermesWith?
 
-### Using Docker Compose
+While Clawith is an excellent agent platform, enterprises face challenges when using it:
+
+| Challenge | HermesWith Solution |
+|-----------|-------------------|
+| Multiple teams sharing Clawith without data isolation | Company-level multi-tenant isolation |
+| No audit trail of who did what | Complete API audit logging |
+| Coarse-grained permission control | Fine-grained API Key based permissions |
+| Complex integration for internal systems | Standardized REST API |
+
+## ✨ Features
+
+- **🏢 Multi-tenant Architecture** - Company-level data isolation with API Key authentication
+- **🤖 Agent Management** - Full lifecycle management of Clawith agents
+- **📋 Task Scheduling** - Priority task queue with status tracking and output
+- **🔒 Enterprise Security** - Fernet encryption for sensitive data, complete audit logs
+- **⚡ Performance** - Redis rate limiting, async database operations
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────┐
+│      Enterprise Internal Systems        │
+│  (ERP / OA / Business Apps / Others)    │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│         HermesWith (Control Plane)      │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
+│  │ Multi-  │ │  Audit  │ │  Access │ │
+│  │ tenant  │ │  Logger │ │ Control │ │
+│  │ Manager │ │         │ │         │ │
+│  └─────────┘ └─────────┘ └─────────┘ │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│         Clawith (Agent Platform)        │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
+│  │  Agent  │ │  Task   │ │ Output  │ │
+│  │  Engine │ │ Executor│ │ Manager │ │
+│  └─────────┘ └─────────┘ └─────────┘ │
+└─────────────────────────────────────────┘
+```
+
+**HermesWith is not a modification of Clawith, but a management layer built on top of it.**
+
+## 🚀 Quick Start
+
+### Using Docker Compose (Recommended)
 
 ```bash
-# Start services
+# Start all services
 docker-compose up -d
 
-# Create a company and get API key
+# Create company and API Key
 docker-compose exec api python -m hermeswith.cli create-company "My Company"
-
-# Create an API key
 docker-compose exec api python -m hermeswith.cli create-api-key <company-id>
 ```
 
-### Manual Setup
+### Manual Installation
 
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Set up environment
+# Configure environment
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env file with your Clawith configuration
 
 # Initialize database
 python -m hermeswith.cli init-db
 
-# Create company and API key
+# Create company and API Key
 python -m hermeswith.cli create-company "My Company"
 python -m hermeswith.cli create-api-key <company-id>
 
-# Run API server
-uvicorn hermeswith.main:app --reload
+# Start server
+uvicorn hermeswith.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## API Endpoints
+## 📡 API Endpoints
 
-- `GET /health` - Health check
-- `POST /v1/agents` - Create agent
-- `GET /v1/agents` - List agents
-- `GET /v1/agents/{id}` - Get agent
-- `PUT /v1/agents/{id}` - Update agent
-- `DELETE /v1/agents/{id}` - Delete agent
-- `POST /v1/agents/{id}/tasks` - Create task for agent
-- `GET /v1/tasks/{id}` - Get task
-- `GET /v1/tasks/{id}/output` - Get task output
-
-## Authentication
-
-Use API key in header:
+### Health Check
 ```
-X-API-Key: hw_<your-api-key>
+GET /health
 ```
 
-Or use Bearer token:
+### Agent Management (Proxy to Clawith)
 ```
+POST   /v1/agents              # Create agent in Clawith
+GET    /v1/agents              # List company agents
+GET    /v1/agents/{id}         # Get agent details
+PUT    /v1/agents/{id}         # Update agent
+DELETE /v1/agents/{id}         # Delete agent
+```
+
+### Task Management (Proxy to Clawith)
+```
+POST   /v1/agents/{id}/tasks   # Assign task to agent
+GET    /v1/tasks/{id}          # Get task status
+GET    /v1/tasks/{id}/output   # Get task output
+```
+
+## 🔐 Authentication
+
+### API Key Authentication (Recommended)
+```http
+X-API-Key: hw_xxxxxxxxxxxxxxxx
+```
+
+### JWT Bearer Token
+```http
 Authorization: Bearer <jwt-token>
 ```
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 hermeswith/
-├── api/              # FastAPI routes and middleware
-├── persistence/      # Database models and connection
-├── security/         # Auth, encryption, rate limiting, audit
-├── integrations/     # Clawith client and sync
-├── services/         # Business logic
-├── cli.py           # CLI commands
-├── config.py        # Configuration
-└── main.py          # FastAPI app entry
+├── api/                    # FastAPI routes and middleware
+├── persistence/            # Database layer
+├── security/               # Auth, encryption, rate limiting, audit
+├── integrations/           # Clawith client and sync service
+├── services/               # Business logic services
+├── cli.py                  # CLI commands
+├── config.py               # Configuration
+└── main.py                 # Application entry
 ```
 
-## Environment Variables
+## 🔧 Environment Variables
 
-- `DATABASE_URL` - PostgreSQL connection string
-- `CLAWITH_BASE_URL` - Clawith API URL
-- `CLAWITH_API_KEY` - Clawith API key
-- `REDIS_URL` - Redis connection string
-- `RATE_LIMIT_PER_MINUTE` - Default rate limit
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/hermeswith` |
+| `CLAWITH_BASE_URL` | Clawith API URL | `http://localhost:3000` |
+| `CLAWITH_API_KEY` | Clawith API key | - |
+| `REDIS_URL` | Redis URL | `redis://localhost:6379` |
+| `RATE_LIMIT_PER_MINUTE` | Rate limit per minute | `60` |
 
-## License
+## 🤝 Contributing
 
-MIT
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Create Pull Request
+
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+<p align="center">Made with ❤️ for Clawith Enterprise Users</p>
