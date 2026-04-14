@@ -12,20 +12,30 @@ RUN apt-get update && apt-get install -y \
 COPY pyproject.toml /app/
 COPY hermeswith/ /app/hermeswith/
 
-# Link vendor hermes-agent (assumes it's mounted or copied)
-COPY vendor/hermes-agent /app/vendor/hermes-agent
+# Copy vendor hermes-agent (real files, not symlink)
+COPY vendor/hermes-agent-copy /app/vendor/hermes-agent
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -e /app
 
-# Also install hermes-agent dependencies
+# Also install hermes-agent dependencies (in case not all are in pyproject.toml)
 RUN pip install --no-cache-dir \
     anthropic>=0.25.0 \
     openai>=1.12.0 \
     httpx>=0.26.0 \
     pydantic>=2.6.0 \
     python-dotenv>=1.0.0 \
-    redis>=5.0.0
+    redis>=5.0.0 \
+    rich>=13.0.0 \
+    tenacity>=8.0.0 \
+    prompt_toolkit>=3.0.0 \
+    pyyaml>=6.0.0 \
+    jinja2>=3.1.0 \
+    requests>=2.31.0 \
+    PyJWT[crypto]>=2.8.0 \
+    debugpy>=1.8.0 \
+    edge-tts>=6.1.0 \
+    croniter>=1.4.0
 
 ENV PYTHONPATH=/app:/app/vendor/hermes-agent
 

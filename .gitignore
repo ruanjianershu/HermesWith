@@ -57,4 +57,10 @@ htmlcov/
 
 # Vendor (if we decide not to commit the full hermes-agent)
 # vendor/hermes-agent/
+vendor/hermes-agent-copy/
 trajectory_samples.jsonl
+
+# Launch scripts
+run_2tracks*.sh
+2tracks*.log
+track_*_output.log

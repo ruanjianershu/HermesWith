@@ -16,6 +16,7 @@ dependencies = [
     "pgvector>=0.2.5",
     "openai>=1.12.0",
     "anthropic>=0.25.0",
+    "websockets>=12.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
 ]
@@ -34,6 +35,11 @@ target-version = ['py310']
 [tool.ruff]
 line-length = 100
 select = ["E", "F", "I"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hermeswith*"]
+exclude = ["vendor*", "tests*", "docs*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -27,32 +27,34 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://hermeswith:hermeswith@postgres:5432/hermeswith
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://hermeswith:***@postgres:5432/hermeswith
+      - REDIS_URL=redis://redis:6379/0
+      - CONTROL_PLANE_WS=ws://control-plane:8000/ws
     volumes:
-      - .:/app/hermeswith
+      - .:/app
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - postgres
       - redis
     command: uvicorn hermeswith.control_plane.api:create_app --host 0.0.0.0 --port 8000 --reload
 
-  # Example agent: researcher
   researcher:
     build:
       context: .
       dockerfile: Dockerfile.runtime
     container_name: hermeswith-researcher
     environment:
-      - AGENT_ID=researcher-001
-      - COMPANY_ID=demo-corp
+      - AGENT_ID=researcher
+      - COMPANY_ID=default
       - AGENT_ROLE=researcher
-      - AGENT_MODEL=anthropic/claude-3-5-sonnet-20241022
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://hermeswith:hermeswith@postgres:5432/hermeswith
+      - AGENT_MODEL=k2p5
+      - AGENT_BASE_URL=https://api.kimi.com/coding/v1
+      - AGENT_API_KEY=${KIMI_API_KEY:-}
+      - REDIS_URL=redis://redis:6379/0
       - CONTROL_PLANE_WS=ws://control-plane:8000/ws
     volumes:
-      - .:/app/hermeswith
-      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app
+      - ~/.hermes/hermes-agent:/app/vendor/hermes-agent
     depends_on:
       - control-plane
       - redis

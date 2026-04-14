@@ -69,7 +69,18 @@ class AgentRuntime:
         
         # Track executions
         self.current_execution: Optional[GoalExecution] = None
-    
+        self.paused = False
+
+    def pause(self):
+        """Pause the agent - it will not accept new goals."""
+        self.paused = True
+        print(f"⏸️  Agent {self.agent_id} paused")
+
+    def resume(self):
+        """Resume the agent."""
+        self.paused = False
+        print(f"▶️  Agent {self.agent_id} resumed")
+
     def _init_hermes_agent(self):
         """Initialize the Hermes AIAgent."""
         try:
@@ -239,6 +250,8 @@ Behavior guidelines:
     
     async def submit_goal(self, description: str, context: Optional[Dict] = None) -> Goal:
         """Submit a Goal directly (for testing)."""
+        if self.paused:
+            raise RuntimeError(f"Agent {self.agent_id} is paused")
         goal = Goal(
             agent_id=self.agent_id,
             company_id=self.company_id,
@@ -270,8 +283,21 @@ class AgentConfig(BaseModel):
     workspace_dir: str = "/workspace"
     
     @classmethod
-    def from_env(cls) -> "AgentConfig":
-        """Create config from environment variables."""
+    def from_env(cls, env_file: Optional[str] = None) -> "AgentConfig":
+        """Create config from environment variables, optionally loading a .env file."""
+        import dotenv
+
+        # Determine .env file path: explicit arg -> project root -> CWD
+        if env_file is None:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            for candidate in [os.path.join(project_root, ".env"), ".env"]:
+                if os.path.isfile(candidate):
+                    env_file = candidate
+                    break
+
+        if env_file and os.path.isfile(env_file):
+            dotenv.load_dotenv(env_file, override=False)
+
         return cls(
             agent_id=os.getenv("AGENT_ID", "agent-001"),
             company_id=os.getenv("COMPANY_ID", "default"),
@@ -279,6 +305,9 @@ class AgentConfig(BaseModel):
             model=os.getenv("AGENT_MODEL", "k2p5"),
             base_url=os.getenv("AGENT_BASE_URL", "https://api.kimi.com/coding/v1"),
             api_key=os.getenv("AGENT_API_KEY", os.getenv("KIMI_API_KEY", "")),
-            redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
-            database_url=os.getenv("DATABASE_URL", "postgresql://user:pass@localhost/db"),
+            redis_url=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+            control_plane_ws=os.getenv("CONTROL_PLANE_WS", "ws://localhost:8000/ws"),
+            workspace_dir=os.getenv("WORKSPACE_DIR", "/workspace"),
+            toolsets=os.getenv("AGENT_TOOLSETS", "terminal,file").split(","),
+            max_iterations=int(os.getenv("AGENT_MAX_ITERATIONS", "20")),
         )
