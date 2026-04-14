@@ -2,17 +2,17 @@
 验证脚本：确认 AgentRuntime -> AIAgent -> LLM 这条路能通。
 
 运行方式:
-    cd /Users/liting/workspace/hermeswith
-    export KIMI_API_KEY=sk-xxx
-    /Users/liting/.hermes/hermes-agent/venv/bin/python examples/verify_llm_path.py
+    export KIMI_API_KEY=***
+    python examples/verify_llm_path.py
 """
 
 import asyncio
 import os
 import sys
 
-sys.path.insert(0, "/Users/liting/workspace/hermeswith")
-sys.path.insert(0, "/Users/liting/workspace/hermeswith/vendor/hermes-agent")
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(sys.path[0], "vendor/hermes-agent"))
 
 from hermeswith.runtime import AgentConfig, AgentRuntime
 

@@ -114,12 +114,13 @@ async def test_direct_execution():
 
 async def test_redis_queue():
     print("\n[Test 5/6] Redis Goal Queue...")
-    sys.path.insert(0, "/Users/liting/workspace/hermeswith")
-    sys.path.insert(0, "/Users/liting/workspace/hermeswith/vendor/hermes-agent")
+    import os
+    # Add project root to path
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, os.path.join(sys.path[0], "vendor/hermes-agent"))
 
     from hermeswith.control_plane.goal_queue import RedisGoalQueue
     from hermeswith.runtime.agent_runtime import Goal
-    import os
 
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     queue = RedisGoalQueue(redis_url)
@@ -146,8 +147,10 @@ async def test_redis_queue():
 
 async def test_local_runtime():
     print("\n[Test 6/6] Local AgentRuntime...")
-    sys.path.insert(0, "/Users/liting/workspace/hermeswith")
-    sys.path.insert(0, "/Users/liting/workspace/hermeswith/vendor/hermes-agent")
+    import os
+    # Add project root to path
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, os.path.join(sys.path[0], "vendor/hermes-agent"))
 
     from hermeswith.runtime import AgentConfig, AgentRuntime
 

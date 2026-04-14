@@ -2,7 +2,6 @@
 Verify that HermesWith runtime tools are properly registered.
 
 Usage:
-    cd /Users/liting/workspace/hermeswith
     export KIMI_API_KEY=***
     python examples/verify_tools.py
 """

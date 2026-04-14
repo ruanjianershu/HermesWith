@@ -75,7 +75,9 @@ async def test_local_runtime():
     """Test 4: Run AgentRuntime locally without API."""
     print("\n[Test 4] Local AgentRuntime execution...")
     import sys
-    sys.path.insert(0, "/Users/liting/workspace/hermeswith")
+    import os
+    # Add parent directory to path for imports
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
     from hermeswith.runtime import AgentConfig, AgentRuntime
     
@@ -103,7 +105,6 @@ async def main():
         await test_health()
     except Exception as e:
         print(f"⚠️  Control Plane not running. Start it with:")
-        print(f"   cd /Users/liting/workspace/hermeswith")
         print(f"   uvicorn hermeswith.control_plane.api:create_app --reload")
         print(f"   Error: {e}")
     
