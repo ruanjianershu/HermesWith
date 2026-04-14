@@ -1,29 +1,33 @@
 # HermesWith
 
-Multi-tenant Control Plane for Clawith - Enterprise-grade agent management, task scheduling, and tenant isolation API layer.
+Multi-tenant AI agent management platform for enterprises.
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/FastAPI-0.100+-green.svg" alt="FastAPI">
+  <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-orange.svg" alt="SQLAlchemy">
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License">
+</p>
 
 ## 🎯 What is HermesWith?
 
-HermesWith is a **multi-tenant Control Plane for Clawith**, providing enterprises with a unified API layer for agent management.
+HermesWith is a multi-tenant AI agent management platform for enterprises, supporting creation, management, and monitoring of AI agents with automated task assignment and execution tracking.
 
-### Why HermesWith?
+### Core Capabilities
 
-While Clawith is an excellent agent platform, enterprises face challenges when using it:
-
-| Challenge | HermesWith Solution |
-|-----------|-------------------|
-| Multiple teams sharing Clawith without data isolation | Company-level multi-tenant isolation |
-| No audit trail of who did what | Complete API audit logging |
-| Coarse-grained permission control | Fine-grained API Key based permissions |
-| Complex integration for internal systems | Standardized REST API |
+- **Multi-tenant Isolation** - Company-level data isolation with API Key authentication
+- **Agent Lifecycle** - Create, configure, monitor, and delete agents
+- **Task Scheduling** - Priority task queue with async execution and status tracking
+- **Enterprise Security** - Fernet encryption, audit logging, rate limiting
 
 ## ✨ Features
 
-- **🏢 Multi-tenant Architecture** - Company-level data isolation with API Key authentication
-- **🤖 Agent Management** - Full lifecycle management of Clawith agents
+- **🏢 Multi-tenant Architecture** - Company-based data isolation with API Key authentication
+- **🤖 Agent Management** - Create, configure, and monitor AI agents
 - **📋 Task Scheduling** - Priority task queue with status tracking and output
 - **🔒 Enterprise Security** - Fernet encryption for sensitive data, complete audit logs
 - **⚡ Performance** - Redis rate limiting, async database operations
+- **🔍 Observability** - Detailed audit trails, rate limit monitoring
 
 ## 🏗️ Architecture
 
@@ -35,25 +39,24 @@ While Clawith is an excellent agent platform, enterprises face challenges when u
                     │
                     ▼
 ┌─────────────────────────────────────────┐
-│         HermesWith (Control Plane)      │
+│         HermesWith Platform             │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
 │  │ Multi-  │ │  Audit  │ │  Access │ │
 │  │ tenant  │ │  Logger │ │ Control │ │
 │  │ Manager │ │         │ │         │ │
 │  └─────────┘ └─────────┘ └─────────┘ │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
+│  │  Agent  │ │  Task   │ │ Output  │ │
+│  │ Service │ │ Service │ │ Service │ │
+│  └─────────┘ └─────────┘ └─────────┘ │
 └─────────────────────────────────────────┘
                     │
                     ▼
 ┌─────────────────────────────────────────┐
-│         Clawith (Agent Platform)        │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
-│  │  Agent  │ │  Task   │ │ Output  │ │
-│  │  Engine │ │ Executor│ │ Manager │ │
-│  └─────────┘ └─────────┘ └─────────┘ │
+│         Agent Runtime                   │
+│    (Configurable external platforms)    │
 └─────────────────────────────────────────┘
 ```
-
-**HermesWith is not a modification of Clawith, but a management layer built on top of it.**
 
 ## 🚀 Quick Start
 
@@ -76,7 +79,7 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env file with your Clawith configuration
+# Edit .env file
 
 # Initialize database
 python -m hermeswith.cli init-db
@@ -96,18 +99,18 @@ uvicorn hermeswith.main:app --host 0.0.0.0 --port 8000 --reload
 GET /health
 ```
 
-### Agent Management (Proxy to Clawith)
+### Agent Management
 ```
-POST   /v1/agents              # Create agent in Clawith
-GET    /v1/agents              # List company agents
+POST   /v1/agents              # Create agent
+GET    /v1/agents              # List agents
 GET    /v1/agents/{id}         # Get agent details
 PUT    /v1/agents/{id}         # Update agent
 DELETE /v1/agents/{id}         # Delete agent
 ```
 
-### Task Management (Proxy to Clawith)
+### Task Management
 ```
-POST   /v1/agents/{id}/tasks   # Assign task to agent
+POST   /v1/agents/{id}/tasks   # Assign task
 GET    /v1/tasks/{id}          # Get task status
 GET    /v1/tasks/{id}/output   # Get task output
 ```
@@ -131,7 +134,7 @@ hermeswith/
 ├── api/                    # FastAPI routes and middleware
 ├── persistence/            # Database layer
 ├── security/               # Auth, encryption, rate limiting, audit
-├── integrations/           # Clawith client and sync service
+├── integrations/           # External platform client and sync
 ├── services/               # Business logic services
 ├── cli.py                  # CLI commands
 ├── config.py               # Configuration
@@ -143,10 +146,10 @@ hermeswith/
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/hermeswith` |
-| `CLAWITH_BASE_URL` | Clawith API URL | `http://localhost:3000` |
-| `CLAWITH_API_KEY` | Clawith API key | - |
 | `REDIS_URL` | Redis URL | `redis://localhost:6379` |
 | `RATE_LIMIT_PER_MINUTE` | Rate limit per minute | `60` |
+| `SECRET_KEY` | Encryption key | Auto-generated |
+| `DEBUG` | Debug mode | `false` |
 
 ## 🤝 Contributing
 
@@ -156,11 +159,10 @@ hermeswith/
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Create Pull Request
 
-
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-<p align="center">Made with ❤️ for Clawith Enterprise Users</p>
+<p align="center">Made with ❤️ by HermesWith Team</p>

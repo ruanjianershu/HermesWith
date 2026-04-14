@@ -1,4 +1,4 @@
-# HermesWith - Clawith 的多租户控制平面
+# HermesWith - 多租户智能体管理平台
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+">
@@ -7,30 +7,27 @@
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License">
 </p>
 
-## 🎯 项目定位
+## 🎯 项目简介
 
-HermesWith 是 **Clawith 的多租户控制平面（Control Plane）**，为企业内部系统提供统一的智能体管理 API 层。
+HermesWith 是一个面向企业的多租户智能体（Agent）管理平台，支持创建、管理和监控 AI 智能体，实现任务的自动化分配和执行追踪。
 
-### 为什么需要 HermesWith？
+### 核心能力
 
-Clawith 是优秀的智能体平台，但企业使用时面临以下问题：
+- **多租户隔离** - 公司级别的数据隔离，API Key 认证
+- **智能体生命周期** - 创建、配置、监控、删除智能体
+- **任务调度** - 优先级任务队列，异步执行，状态追踪
+- **企业安全** - Fernet 加密，审计日志，速率限制
 
-| 问题 | HermesWith 解决方案 |
-|------|-------------------|
-| 多团队共用 Clawith，数据无法隔离 | 公司级别的多租户隔离 |
-| 缺乏审计，不知道谁做了什么 | 完整的 API 审计日志 |
-| 权限控制粒度太粗 | 基于 API Key 的细粒度权限 |
-| 内部系统对接复杂 | 标准化的 REST API |
+## ✨ 特性
 
-## ✨ 核心特性
-
-- **🏢 多租户架构** - 公司级别的数据隔离，API Key 认证机制
-- **🤖 智能体管理** - 管理 Clawith 智能体的全生命周期
+- **🏢 多租户架构** - 基于公司的数据隔离，API Key 认证机制
+- **🤖 智能体管理** - 创建、配置、监控 AI 智能体
 - **📋 任务调度** - 优先级任务队列，状态跟踪和结果输出
 - **🔒 企业级安全** - Fernet 加密敏感数据，完整的审计日志
 - **⚡ 性能优化** - Redis 限流保护，异步数据库操作
+- **🔍 可观测性** - 详细的审计追踪，速率限制监控
 
-## 🏗️ 架构关系
+## 🏗️ 架构
 
 ```
 ┌─────────────────────────────────────────┐
@@ -40,24 +37,23 @@ Clawith 是优秀的智能体平台，但企业使用时面临以下问题：
                     │
                     ▼
 ┌─────────────────────────────────────────┐
-│         HermesWith (控制平面)           │
+│         HermesWith 平台                 │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
 │  │ 多租户  │ │ 审计日志 │ │ 权限控制 │ │
 │  │ 管理    │ │         │ │         │ │
+│  └─────────┘ └─────────┘ └─────────┘ │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
+│  │ 智能体  │ │ 任务    │ │ 输出    │ │
+│  │ 服务    │ │ 服务    │ │ 服务    │ │
 │  └─────────┘ └─────────┘ └─────────┘ │
 └─────────────────────────────────────────┘
                     │
                     ▼
 ┌─────────────────────────────────────────┐
-│         Clawith (智能体平台)            │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
-│  │ 智能体  │ │ 任务执行 │ │ 输出管理 │ │
-│  │ 引擎    │ │         │ │         │ │
-│  └─────────┘ └─────────┘ └─────────┘ │
+│         智能体运行时                     │
+│    (通过配置对接外部智能体平台)          │
 └─────────────────────────────────────────┘
 ```
-
-**HermesWith 不是修改 Clawith，而是在其之上构建管理层。**
 
 ## 🚀 快速开始
 
@@ -80,7 +76,7 @@ pip install -r requirements.txt
 
 # 配置环境变量
 cp .env.example .env
-# 编辑 .env 文件，配置 Clawith 地址
+# 编辑 .env 文件
 
 # 初始化数据库
 python -m hermeswith.cli init-db
@@ -100,18 +96,18 @@ uvicorn hermeswith.main:app --host 0.0.0.0 --port 8000 --reload
 GET /health
 ```
 
-### 智能体管理（代理到 Clawith）
+### 智能体管理
 ```
-POST   /v1/agents              # 在 Clawith 创建智能体
-GET    /v1/agents              # 列出公司的智能体
+POST   /v1/agents              # 创建智能体
+GET    /v1/agents              # 列出智能体
 GET    /v1/agents/{id}         # 获取智能体详情
 PUT    /v1/agents/{id}         # 更新智能体
 DELETE /v1/agents/{id}         # 删除智能体
 ```
 
-### 任务管理（代理到 Clawith）
+### 任务管理
 ```
-POST   /v1/agents/{id}/tasks   # 分配任务给智能体
+POST   /v1/agents/{id}/tasks   # 分配任务
 GET    /v1/tasks/{id}          # 获取任务状态
 GET    /v1/tasks/{id}/output   # 获取任务输出
 ```
@@ -144,8 +140,8 @@ hermeswith/
 │   ├── encryption.py       # 加密管理
 │   ├── rate_limit.py       # 限流控制
 │   └── audit.py            # 审计日志
-├── integrations/           # Clawith 交互层
-│   ├── clawith_client.py   # Clawith API 客户端
+├── integrations/           # 集成层
+│   ├── client.py           # 外部平台客户端
 │   └── sync_service.py     # 数据同步服务
 ├── services/               # 业务服务层
 │   ├── agent_service.py    # 智能体服务
@@ -161,8 +157,6 @@ hermeswith/
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | `DATABASE_URL` | PostgreSQL 连接字符串 | `postgresql://postgres:postgres@localhost:5432/hermeswith` |
-| `CLAWITH_BASE_URL` | Clawith API 地址 | `http://localhost:3000` |
-| `CLAWITH_API_KEY` | Clawith API 密钥 | - |
 | `REDIS_URL` | Redis 连接地址 | `redis://localhost:6379` |
 | `RATE_LIMIT_PER_MINUTE` | 每分钟请求限制 | `60` |
 | `SECRET_KEY` | 加密密钥 | 自动生成 |
@@ -191,7 +185,6 @@ pytest --cov=hermeswith tests/
 4. 推送到分支 (`git push origin feature/amazing-feature`)
 5. 创建 Pull Request
 
-
 ## 📄 许可证
 
 本项目采用 [MIT 许可证](LICENSE) 开源。
@@ -203,4 +196,4 @@ pytest --cov=hermeswith tests/
 
 ---
 
-<p align="center">Made with ❤️ for Clawith Enterprise Users</p>
+<p align="center">Made with ❤️ by HermesWith Team</p>
