@@ -375,3 +375,162 @@ def build_preloaded_skills_prompt(
         loaded_names.append(skill_name)
 
     return "\n\n".join(prompt_parts), loaded_names, missing
+
+
+# ── SDC (Spec-Driven-Coding) 命名空间命令 ──
+# 参考 OpenSpec /opsx:propose 和 Superpowers 设计理念
+
+import re
+_SDC_COMMAND_PATTERN = re.compile(r"^/sdc:([a-z]+)(\s+.*)?$", re.IGNORECASE)
+
+# SDC 子命令定义：子命令名称 -> (描述, 技能管道列表)
+SDC_SUBCOMMANDS = {
+    "spec": (
+        "生成规范文档 - 结构化需求分析与设计规范",
+        ["writing-plans"],
+    ),
+    "plan": (
+        "生成实现计划 - 详细的分步执行方案",
+        ["writing-plans", "test-driven-development"],
+    ),
+    "implement": (
+        "执行开发实现 - 自动生成计划并分发给子代理",
+        ["writing-plans", "subagent-driven-development", "requesting-code-review"],
+    ),
+    "review": (
+        "代码审查 - 质量检查与改进建议",
+        ["requesting-code-review", "systematic-debugging"],
+    ),
+    "test": (
+        "测试驱动开发 - TDD 模式开发",
+        ["test-driven-development", "systematic-debugging"],
+    ),
+    "quality": (
+        "质量检查 - 代码规范与质量保障",
+        ["systematic-debugging", "requesting-code-review"],
+    ),
+}
+
+
+def is_sdc_command(command: str) -> bool:
+    """检查是否为 SDC 命名空间命令。
+    
+    示例: /sdc:spec, /sdc:plan, /sdc:implement
+    """
+    return bool(_SDC_COMMAND_PATTERN.match(command.strip()))
+
+
+def parse_sdc_command(command: str) -> tuple[str | None, str]:
+    """解析 SDC 命令，返回 (子命令, 用户输入)。
+    
+    示例: "/sdc:spec 实现用户登录" -> ("spec", "实现用户登录")
+    """
+    match = _SDC_COMMAND_PATTERN.match(command.strip())
+    if not match:
+        return None, ""
+    subcmd = match.group(1).lower()
+    user_input = (match.group(2) or "").strip()
+    return subcmd, user_input
+
+
+def get_sdc_pipeline(subcommand: str) -> list[str]:
+    """获取子命令对应的技能管道。"""
+    if subcommand not in SDC_SUBCOMMANDS:
+        return []
+    return SDC_SUBCOMMANDS[subcommand][1]
+
+
+def build_sdc_invocation_message(
+    command: str,
+    task_id: str | None = None,
+) -> str | None:
+    """构建 SDC 命令调用消息，自动编排技能管道。
+    
+    当用户输入 /sdc:spec <需求> 时:
+    1. 解析子命令和用户输入
+    2. 加载该子命令对应的所有技能
+    3. 组合成完整的系统提示
+    """
+    subcmd, user_instruction = parse_sdc_command(command)
+    
+    if not subcmd or subcmd not in SDC_SUBCOMMANDS:
+        available = ", ".join(f"/sdc:{k}" for k in sorted(SDC_SUBCOMMANDS.keys()))
+        return (
+            f"[SDC] 未知子命令: /sdc:{subcmd or '(none)'}\\n"
+            f"可用子命令: {available}"
+        )
+    
+    description, pipeline = SDC_SUBCOMMANDS[subcmd]
+    
+    # 构建激活消息
+    parts = [
+        f"[SYSTEM: 用户已调用 Spec-Driven-Coding (SDC) 命令 /sdc:{subcmd}]",
+        f"[SDC 模式: {description}]",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "SDC 基于 OpenSpec 和 Superpowers 设计理念",
+        "自动编排底层技能组合，提供规范驱动的开发工作流",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+    ]
+    
+    # 加载并编排管道中的每个技能
+    loaded_skills = []
+    missing_skills = []
+    
+    for skill_name in pipeline:
+        # 尝试加载 skill
+        loaded = _load_skill_payload(skill_name, task_id=task_id)
+        if loaded:
+            loaded_skill, skill_dir, display_name = loaded
+            loaded_skills.append((loaded_skill, skill_dir, display_name))
+        else:
+            missing_skills.append(skill_name)
+    
+    # 添加已加载的技能内容
+    for idx, (loaded_skill, skill_dir, display_name) in enumerate(loaded_skills, 1):
+        parts.extend([
+            f"## [SDC 管道步骤 {idx}/{len(loaded_skills)}: {display_name}]",
+            "─" * 50,
+            loaded_skill.get("content", "").strip(),
+            "",
+        ])
+    
+    if missing_skills:
+        parts.append(f"[SDC 注意: 以下技能未找到: {', '.join(missing_skills)}]")
+    
+    # 添加用户指令
+    if user_instruction:
+        parts.extend([
+            "",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"## 用户指令",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "",
+            user_instruction,
+        ])
+    
+    # 添加 SDC 质量保障注入
+    parts.extend([
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "## SDC 质量保障准则",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+        "1. **每个任务粒度**: 单个任务应在 2-5 分钟内可完成",
+        "2. **可验证性**: 每个步骤必须包含明确的验证方法",
+        "3. **文档完整性**: 包含目标、上下文、分步方案、风险点",
+        "4. **可执行性**: 提供确切的文件路径、代码示例、测试命令",
+        "",
+        f"请按照 SDC /sdc:{subcmd} 模式处理用户需求。",
+    ])
+    
+    return "\n".join(parts)
+
+
+def get_sdc_command_list() -> list[tuple[str, str]]:
+    """获取所有 SDC 子命令列表，用于 /help 显示。"""
+    return [
+        (f"/sdc:{name}", desc)
+        for name, (desc, _) in SDC_SUBCOMMANDS.items()
+    ]

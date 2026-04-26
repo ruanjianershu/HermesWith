@@ -3650,6 +3650,33 @@ class GatewayRunner:
             except Exception as e:
                 logger.debug("Plugin command dispatch failed (non-fatal): %s", e)
 
+        # ── SDC (Spec-Driven-Coding) 命名空间命令 ──
+        # 处理 /sdc:spec, /sdc:plan, /sdc:implement 等命令
+        if command and command.lower().startswith("sdc:"):
+            try:
+                from agent.skill_commands import (
+                    is_sdc_command,
+                    build_sdc_invocation_message,
+                    parse_sdc_command,
+                    SDC_SUBCOMMANDS,
+                )
+                full_cmd = f"/{command}"
+                if is_sdc_command(full_cmd):
+                    subcmd, user_instruction = parse_sdc_command(full_cmd)
+                    if subcmd in SDC_SUBCOMMANDS:
+                        msg = build_sdc_invocation_message(full_cmd, task_id=_quick_key)
+                        if msg:
+                            event.text = msg
+                            # Fall through to normal message processing
+                    else:
+                        available = ", ".join(f"`/sdc:{k}`" for k in sorted(SDC_SUBCOMMANDS.keys()))
+                        return (
+                            f"Unknown SDC subcommand: `/{command}`\\n"
+                            f"Available commands: {available}"
+                        )
+            except Exception as e:
+                logger.debug("SDC command check failed (non-fatal): %s", e)
+
         # Skill slash commands: /skill-name loads the skill and sends to agent.
         # resolve_skill_command_key() handles the Telegram underscore/hyphen
         # round-trip so /claude_code from Telegram autocomplete still resolves

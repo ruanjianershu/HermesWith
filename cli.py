@@ -4149,6 +4149,19 @@ class HermesCLI:
                     f"    [bold {_accent_hex()}]{cmd:<22}[/] [dim]-[/] {_escape(info['description'])}"
                 )
 
+        # ── SDC (Spec-Driven-Coding) 命令 ──
+        try:
+            from agent.skill_commands import get_sdc_command_list
+            sdc_commands = get_sdc_command_list()
+            if sdc_commands:
+                _cprint(f"\n  🚀 {_BOLD}SDC (Spec-Driven-Coding){_RST}:")
+                for cmd, desc in sdc_commands:
+                    ChatConsole().print(
+                        f"    [bold {_accent_hex()}]{cmd:<22}[/] [dim]-[/] {_escape(desc)}"
+                    )
+        except Exception:
+            pass
+
         _cprint(f"\n  {_DIM}Tip: Just type your message to chat with Hermes!{_RST}")
         _cprint(f"  {_DIM}Multi-line: Alt+Enter for a new line{_RST}")
         _cprint(f"  {_DIM}Draft editor: Ctrl+G{_RST}")
@@ -6091,6 +6104,34 @@ class HermesCLI:
                             _cprint(str(result))
                     except Exception as e:
                         _cprint(f"\033[1;31mPlugin command error: {e}{_RST}")
+            # Check for SDC (Spec-Driven-Coding) namespace commands: /sdc:spec, /sdc:plan, etc.
+            elif base_cmd.startswith("/sdc:"):
+                from agent.skill_commands import (
+                    is_sdc_command,
+                    build_sdc_invocation_message,
+                    parse_sdc_command,
+                    SDC_SUBCOMMANDS,
+                )
+                if is_sdc_command(cmd_original):
+                    subcmd, user_instruction = parse_sdc_command(cmd_original)
+                    if subcmd in SDC_SUBCOMMANDS:
+                        description = SDC_SUBCOMMANDS[subcmd][0]
+                        msg = build_sdc_invocation_message(cmd_original, task_id=self.session_id)
+                        if msg:
+                            _cprint(f"\n  🚀 SDC /sdc:{subcmd} 模式已激活")
+                            _cprint(f"  {description}")
+                            if hasattr(self, '_pending_input'):
+                                self._pending_input.put(msg)
+                        else:
+                            ChatConsole().print(f"[bold red]Failed to load SDC command /sdc:{subcmd}[/]")
+                    else:
+                        available = ", ".join(f"/sdc:{k}" for k in sorted(SDC_SUBCOMMANDS.keys()))
+                        _cprint(f"  ❓ 未知 SDC 子命令: /sdc:{subcmd or '(none)'}")
+                        _cprint(f"  可用命令: {available}")
+                else:
+                    available = ", ".join(f"/sdc:{k}" for k in sorted(SDC_SUBCOMMANDS.keys()))
+                    _cprint(f"  ❓ 无效的 SDC 命令格式")
+                    _cprint(f"  可用命令: {available}")
             # Check for skill slash commands (/gif-search, /axolotl, etc.)
             elif base_cmd in _skill_commands:
                 user_instruction = cmd_original[len(base_cmd):].strip()
